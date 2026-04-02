@@ -1,4 +1,4 @@
-import { Arribo, Favorito, Interseccion, Linea, Parada, PuntoRecorrido } from "./cuandoLlega.types";
+import { Arribo, Favorito, HistorialEntry, Interseccion, Linea, Parada, PuntoRecorrido } from "./cuandoLlega.types";
 
 const BASE_URL = "/api/cuando";
 
@@ -17,8 +17,24 @@ export async function post(accion: string, params: Record<string, string> = {}) 
  * Generic fetcher for SWR. 
  * Key format: [action, paramsObject]
  */
+export class MgpError extends Error {
+  constructor(message: string, public readonly isNetwork: boolean) {
+    super(message);
+    this.name = "MgpError";
+  }
+}
+
 export const swrFetcher = async ([accion, params]: [string, Record<string, string>]) => {
-  return post(accion, params);
+  try {
+    return await post(accion, params);
+  } catch (err: any) {
+    // Network error, timeout, or server totally unreachable
+    if (err instanceof TypeError || err?.name === "AbortError" || err?.message?.startsWith("Failed to fetch")) {
+      throw new MgpError("El servidor de la Municipalidad no responde. Verificá tu conexión e intentá de nuevo.", true);
+    }
+    // HTTP error propagated from post()
+    throw new MgpError(`Error del servidor (${err?.message ?? "desconocido"}). Intentá de nuevo en unos momentos.`, false);
+  }
 };
 
 // --- API calls ---
@@ -115,4 +131,37 @@ export function updateFavorito(id: string, name: string): void {
 
 export function isFavorito(id: string): boolean {
   return getFavoritos().some((f) => f.id === id);
+}
+
+// --- Historial (localStorage) ---
+const HIST_KEY = "cuandollega_historial";
+const HIST_MAX = 10;
+
+export function getHistorial(): HistorialEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(HIST_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Adds or promotes an entry to the top of the historial.
+ * Entries are keyed by id (paradaId_codLinea), so re-consulting the same
+ * stop just moves it to the top instead of duplicating it.
+ */
+export function pushHistorial(entry: HistorialEntry): void {
+  const prev = getHistorial().filter((h) => h.id !== entry.id);
+  const next = [entry, ...prev].slice(0, HIST_MAX);
+  localStorage.setItem(HIST_KEY, JSON.stringify(next));
+}
+
+export function removeHistorialEntry(id: string): void {
+  const next = getHistorial().filter((h) => h.id !== id);
+  localStorage.setItem(HIST_KEY, JSON.stringify(next));
+}
+
+export function clearHistorial(): void {
+  localStorage.removeItem(HIST_KEY);
 }

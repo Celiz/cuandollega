@@ -237,12 +237,30 @@ export const SearchFlow = memo(function SearchFlow({
 
             {error && (
                 <div style={{
-                    padding: "12px 16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
-                    borderRadius: 8, color: "#ef4444", fontFamily: "var(--mono)", fontSize: 13,
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "14px 16px",
+                    background: "rgba(239,68,68,0.08)",
+                    border: "1px solid rgba(239,68,68,0.35)",
+                    borderRadius: 10,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 12,
+                    animation: "slide-up 0.2s ease",
                 }}>
-                    {error}
-                    <button onClick={() => setError("")} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>
+                    {/* Warning icon */}
+                    <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+                    <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 13, color: "#ef4444", marginBottom: 3 }}>
+                            El servidor no responde
+                        </div>
+                        <div style={{ fontFamily: "var(--mono)", fontSize: 12, color: "rgba(239,68,68,0.85)", lineHeight: 1.5 }}>
+                            {error}
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setError("")}
+                        style={{ background: "none", border: "none", color: "rgba(239,68,68,0.6)", cursor: "pointer", flexShrink: 0, padding: 2 }}
+                        aria-label="Cerrar error"
+                    >
                         <IconX />
                     </button>
                 </div>

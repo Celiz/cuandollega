@@ -36,6 +36,15 @@ export interface Arribo {
   MensajeError: string;
 }
 
+export interface HistorialEntry {
+  id: string;                  // `${paradaId}_${codLinea}`
+  paradaId: string;
+  codLinea: string;
+  descripcionLinea: string;
+  descripcionBandera: string;
+  timestamp: number;           // Date.now()
+}
+
 export interface Favorito {
   id: string;
   nombre: string;
