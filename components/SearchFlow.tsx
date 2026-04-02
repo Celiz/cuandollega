@@ -125,11 +125,7 @@ export const SearchFlow = memo(function SearchFlow({
                     <Combobox
                         placeholder="Elegí el destino..."
                         value={paradaId}
-                        onChange={(val) => {
-                            setParadaId(val);
-                            setIsConsulting(false);
-                            setSelectedRamal("TODOS");
-                        }}
+                        onChange={setParadaId}
                         options={destinoOptions}
                     />
                 </div>

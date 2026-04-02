@@ -92,27 +92,36 @@ export default function Home() {
         setFavoritos(getFavoritos());
     }, []);
 
-    // Reset downstream selections when dependency changes
-    useEffect(() => {
+    // --- Handlers for manual selection changes ---
+    const handleLineaChange = useCallback((val: string) => {
+        setCodLinea(val);
         setCodCalle("");
         setCodInterseccion("");
         setParadaId("");
         setIsConsulting(false);
         setSelectedRamal("TODOS");
-    }, [codLinea]);
+    }, []);
 
-    useEffect(() => {
+    const handleCalleChange = useCallback((val: string) => {
+        setCodCalle(val);
         setCodInterseccion("");
         setParadaId("");
         setIsConsulting(false);
         setSelectedRamal("TODOS");
-    }, [codCalle]);
+    }, []);
 
-    useEffect(() => {
+    const handleInterseccionChange = useCallback((val: string) => {
+        setCodInterseccion(val);
         setParadaId("");
         setIsConsulting(false);
         setSelectedRamal("TODOS");
-    }, [codInterseccion]);
+    }, []);
+
+    const handleParadaChange = useCallback((val: string) => {
+        setParadaId(val);
+        setIsConsulting(false);
+        setSelectedRamal("TODOS");
+    }, []);
 
     const handleConsultar = useCallback(() => {
         if (!paradaId) return;
@@ -158,6 +167,7 @@ export default function Home() {
         setTab("buscar");
         setParadaId(fav.identificadorParada);
         setCodLinea(fav.id.split("_")[1]);
+        setSelectedRamal("TODOS");
         setIsConsulting(true);
     }, []);
 
@@ -222,10 +232,10 @@ export default function Home() {
             <main style={{ flex: 1, padding: "20px", maxWidth: 520, margin: "0 auto", width: "100%" }}>
                 {tab === "buscar" ? (
                     <SearchFlow
-                        codLinea={codLinea} setCodLinea={setCodLinea}
-                        codCalle={codCalle} setCodCalle={setCodCalle}
-                        codInterseccion={codInterseccion} setCodInterseccion={setCodInterseccion}
-                        paradaId={paradaId} setParadaId={setParadaId}
+                        codLinea={codLinea} setCodLinea={handleLineaChange}
+                        codCalle={codCalle} setCodCalle={handleCalleChange}
+                        codInterseccion={codInterseccion} setCodInterseccion={handleInterseccionChange}
+                        paradaId={paradaId} setParadaId={handleParadaChange}
                         selectedRamal={selectedRamal} setSelectedRamal={setSelectedRamal}
                         isConsulting={isConsulting} setIsConsulting={setIsConsulting}
                         lineaOptions={lineaOptions} calles={calles} interOptions={interOptions}
