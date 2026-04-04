@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { IconBus } from "./icons/IconBus";
 
 interface HeaderProps {
@@ -9,12 +11,32 @@ interface HeaderProps {
 }
 
 export function Header({ tab, setTab, favCount }: HeaderProps) {
+    const router = useRouter();
+    // Skip SSR entirely: render an empty placeholder until the component mounts.
+    // This prevents hydration mismatches caused by browser extensions that inject
+    // attributes (e.g. tski-tab-id, href) into DOM elements before React hydrates.
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
+
+    if (!mounted) {
+        return (
+            <header style={{
+                padding: "16px 20px 0",
+                borderBottom: "1px solid var(--border)",
+                background: "var(--surface)",
+                minHeight: 90,
+            }} />
+        );
+    }
+
     return (
         <header style={{
-            padding: "16px 20px 0", borderBottom: "1px solid var(--border)",
+            padding: "16px 20px 0",
+            borderBottom: "1px solid var(--border)",
             background: "var(--surface)",
         }}>
             <div style={{ maxWidth: 520, margin: "0 auto" }}>
+                {/* Logo row */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                     <div style={{
                         background: "var(--accent)", borderRadius: 8, padding: "5px 8px",
@@ -45,6 +67,15 @@ export function Header({ tab, setTab, favCount }: HeaderProps) {
                             {t === "buscar" ? "🔍 Buscar" : `⭐ Favoritos (${favCount})`}
                         </button>
                     ))}
+                    <button onClick={() => router.push("/recorrido")} style={{
+                        flex: 1, padding: "8px 0", background: "none", border: "none",
+                        borderBottom: "2px solid transparent",
+                        color: "var(--text-dim)",
+                        fontFamily: "var(--display)", fontWeight: 700, fontSize: 15, letterSpacing: 1,
+                        cursor: "pointer", transition: "color 0.15s", textTransform: "uppercase",
+                    }}>
+                        🗺 Mapa
+                    </button>
                 </div>
             </div>
         </header>

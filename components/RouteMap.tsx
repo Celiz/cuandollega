@@ -1,0 +1,580 @@
+"use client";
+
+import React, { useEffect, useState, useRef, useMemo, Fragment } from "react";
+import { MapContainer, TileLayer, Marker, Polyline, useMap, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+const IconMaximize = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+  </svg>
+);
+const IconMinimize = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+  </svg>
+);
+const IconTarget = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+const IconList = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+  </svg>
+);
+const IconClose = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+const IconSearch = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+);
+const IconNav = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+  </svg>
+);
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Stop {
+  id: number;
+  lat: number;
+  lng: number;
+  label: string;
+}
+
+interface RouteMapProps {
+  geojsonUrl: string;
+  routeName?: string;
+  accentColor?: string;
+}
+
+// ─── Direction arrow icon ─────────────────────────────────────────────────────
+
+function createArrowIcon(bearing: number) {
+  return L.divIcon({
+    className: "clear-arrow",
+    html: `<div style="transform: rotate(${bearing}deg); display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.4));">
+        <path d="M18 15l-6-6-6 6"/>
+      </svg>
+    </div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+}
+
+// ─── Stop marker icon ─────────────────────────────────────────────────────────
+
+function createStopIcon(index: number, isSelected: boolean, accentColor: string) {
+  const size = isSelected ? 32 : 22;
+  const bg = isSelected ? accentColor : "#1a1a2e";
+  const border = isSelected ? "#fff" : accentColor;
+  const textColor = isSelected ? "#000" : "#fff";
+  const shadow = isSelected
+    ? `0 0 0 4px rgba(245,166,35,0.35), 0 4px 16px rgba(0,0,0,0.7)`
+    : `0 2px 8px rgba(0,0,0,0.5)`;
+
+  return L.divIcon({
+    className: "stop-icon-clear",
+    html: `<div style="
+      width:${size}px;height:${size}px;
+      background:${bg};
+      border:2.5px solid ${border};
+      border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Barlow Condensed',sans-serif;
+      font-weight:900;font-size:${isSelected ? 13 : 10}px;
+      color:${textColor};
+      box-shadow:${shadow};
+      cursor:pointer;
+    ">${index}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 6)],
+  });
+}
+
+// ─── Map auto-fit and invalidate ──────────────────────────────────────────────
+
+function MapController({
+  bounds,
+  triggerFit,
+  isFullscreen,
+}: {
+  bounds: L.LatLngBoundsExpression | null;
+  triggerFit: number;
+  isFullscreen: boolean;
+}) {
+  const map = useMap();
+  const fitted = useRef(false);
+  const lastTrigger = useRef(triggerFit);
+
+  useEffect(() => {
+    setTimeout(() => map.invalidateSize({ animate: true }), 100);
+    setTimeout(() => map.invalidateSize({ animate: true }), 300);
+  }, [isFullscreen, map]);
+
+  useEffect(() => {
+    if (!bounds) return;
+    if (!fitted.current || lastTrigger.current !== triggerFit) {
+      fitted.current = true;
+      lastTrigger.current = triggerFit;
+      setTimeout(() => {
+        map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [60, 60], animate: true });
+      }, 120);
+    }
+  }, [map, bounds, triggerFit]);
+
+  return null;
+}
+
+// ─── Google Maps helper ───────────────────────────────────────────────────────
+
+function googleMapsUrl(lat: number, lng: number) {
+  return `https://maps.google.com/?q=${lat},${lng}`;
+}
+function googleDirUrl(lat: number, lng: number) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=walking`;
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function RouteMap({
+  geojsonUrl,
+  routeName = "Recorrido",
+  accentColor = "#f5a623",
+}: RouteMapProps) {
+  const [routeLine, setRouteLine] = useState<[number, number][]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
+  const [selectedStop, setSelectedStop] = useState<number | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showStopList, setShowStopList] = useState(false);
+  const [search, setSearch] = useState("");
+  const [fitTrigger, setFitTrigger] = useState(0);
+
+  useEffect(() => {
+    fetch(geojsonUrl)
+      .then((r) => r.json())
+      .then((geojson) => {
+        const lineCoords: [number, number][] = [];
+        const stopList: Stop[] = [];
+
+        for (const feature of geojson.features) {
+          const { type, coordinates } = feature.geometry;
+          if (type === "LineString") {
+            for (const c of coordinates) lineCoords.push([c[1], c[0]]);
+          } else if (type === "Point") {
+            const [lng, lat] = coordinates;
+            stopList.push({
+              id: stopList.length + 1,
+              lat,
+              lng,
+              label:
+                feature.properties?.nombre ||
+                feature.properties?.name ||
+                `Parada ${stopList.length + 1}`,
+            });
+          }
+        }
+
+        setRouteLine(lineCoords);
+        setStops(stopList);
+      })
+      .catch(console.error);
+  }, [geojsonUrl]);
+
+  const bounds = useMemo<L.LatLngBoundsExpression | null>(() => {
+    if (routeLine.length === 0) return null;
+    return L.latLngBounds(routeLine);
+  }, [routeLine]);
+
+  // Direction arrows along the route
+  const arrowMarkers = useMemo(() => {
+    const arrows: { pos: [number, number]; bearing: number }[] = [];
+    if (routeLine.length < 5) return arrows;
+    for (let j = 10; j < routeLine.length - 2; j += 20) {
+      const p1 = routeLine[Math.max(0, j - 2)];
+      const p2 = routeLine[Math.min(routeLine.length - 1, j + 2)];
+      if (p1 && p2) {
+        const dLon = p2[1] - p1[1];
+        const y = Math.sin((dLon * Math.PI) / 180) * Math.cos((p2[0] * Math.PI) / 180);
+        const x =
+          Math.cos((p1[0] * Math.PI) / 180) * Math.sin((p2[0] * Math.PI) / 180) -
+          Math.sin((p1[0] * Math.PI) / 180) *
+            Math.cos((p2[0] * Math.PI) / 180) *
+            Math.cos((dLon * Math.PI) / 180);
+        const bearing = (Math.atan2(y, x) * 180) / Math.PI;
+        arrows.push({ pos: routeLine[j], bearing });
+      }
+    }
+    return arrows;
+  }, [routeLine]);
+
+  const filteredStops = useMemo(() => {
+    if (!search.trim()) return stops;
+    const q = search.toLowerCase();
+    return stops.filter(
+      (s) => s.label.toLowerCase().includes(q) || String(s.id).includes(q)
+    );
+  }, [stops, search]);
+
+  const selected = stops.find((s) => s.id === selectedStop) ?? null;
+
+  const center: [number, number] = routeLine.length > 0
+    ? routeLine[Math.floor(routeLine.length / 2)]
+    : [-38.0, -57.5];
+
+  if (stops.length === 0 && routeLine.length === 0) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-dim)", fontFamily: "var(--mono)" }}>
+        Cargando recorrido…
+      </div>
+    );
+  }
+
+  const containerStyle: React.CSSProperties = isFullscreen
+    ? { position: "fixed", inset: 0, zIndex: 99999, background: "#000", display: "flex", flexDirection: "column" }
+    : { height: "400px", width: "100%", borderRadius: "12px", overflow: "hidden", border: "1px solid var(--border)", marginBottom: "16px", position: "relative", zIndex: 1 };
+
+  return (
+    <div style={containerStyle}>
+      {/* ── Floating top-left header ──────────────────────────────────── */}
+      {isFullscreen && (
+        <div style={{
+          position: "absolute", top: 16, left: 16, zIndex: 1000,
+          background: "var(--surface)", padding: "10px 16px", borderRadius: "10px",
+          border: "1px solid var(--border)", boxShadow: "0 6px 16px rgba(0,0,0,0.6)",
+          fontFamily: "var(--display)", fontWeight: 800, fontSize: 15, letterSpacing: 1,
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <span style={{ background: accentColor, color: "#000", borderRadius: 6, padding: "2px 10px", fontWeight: 900, fontSize: 18 }}>521</span>
+          <span style={{ color: "var(--text)", fontSize: 13 }}>{routeName}</span>
+        </div>
+      )}
+
+      {/* ── Floating right buttons ────────────────────────────────────── */}
+      <div style={{
+        position: "absolute", top: 12, right: 12, zIndex: 1000,
+        display: "flex", gap: 10, flexDirection: "column",
+      }}>
+        <button
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "10px", width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 6px 16px rgba(0,0,0,0.6)" }}
+          title={isFullscreen ? "Minimizar" : "Pantalla completa"}
+        >
+          {isFullscreen ? <IconMinimize /> : <IconMaximize />}
+        </button>
+        <button
+          onClick={() => setFitTrigger((f) => f + 1)}
+          style={{ background: "var(--surface)", color: accentColor, border: "1px solid var(--border)", borderRadius: "10px", width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 6px 16px rgba(0,0,0,0.6)" }}
+          title="Centrar recorrido"
+        >
+          <IconTarget />
+        </button>
+        <button
+          onClick={() => { setShowStopList(!showStopList); setSelectedStop(null); }}
+          style={{ background: showStopList ? accentColor : "var(--surface)", color: showStopList ? "#000" : "var(--text)", border: "1px solid var(--border)", borderRadius: "10px", width: 48, height: 48, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", boxShadow: "0 6px 16px rgba(0,0,0,0.6)" }}
+          title="Ver paradas"
+        >
+          <IconList />
+        </button>
+      </div>
+
+      {/* ── Map ──────────────────────────────────────────────────────── */}
+      <MapContainer
+        center={center}
+        zoom={12}
+        scrollWheelZoom={true}
+        style={{ height: "100%", width: "100%", zIndex: 1, flex: 1, background: "#111114" }}
+      >
+        <TileLayer
+          url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+          attribution="&copy; Google Maps"
+        />
+
+        {/* Route line */}
+        {routeLine.length > 0 && (
+          <Fragment>
+            <Polyline
+              positions={routeLine}
+              color={accentColor}
+              weight={8}
+              opacity={1}
+              lineCap="round"
+              lineJoin="round"
+            />
+            {/* Direction arrows */}
+            {arrowMarkers.map((arr, idx) => (
+              <Marker
+                key={`arr-${idx}`}
+                position={arr.pos}
+                icon={createArrowIcon(arr.bearing)}
+                interactive={false}
+              />
+            ))}
+          </Fragment>
+        )}
+
+        {/* Stop markers */}
+        {stops.map((stop) => {
+          const isSel = stop.id === selectedStop;
+          return (
+            <Marker
+              key={stop.id}
+              position={[stop.lat, stop.lng]}
+              icon={createStopIcon(stop.id, isSel, accentColor)}
+              eventHandlers={{ click: () => setSelectedStop(isSel ? null : stop.id) }}
+              zIndexOffset={isSel ? 1000 : 0}
+            >
+              <Popup maxWidth={240}>
+                <StopPopup stop={stop} accentColor={accentColor} />
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        <MapController bounds={bounds} triggerFit={fitTrigger} isFullscreen={isFullscreen} />
+      </MapContainer>
+
+      {/* ── Stop list drawer (bottom sheet) ──────────────────────────── */}
+      {showStopList && (
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 1000,
+          background: "var(--surface)", borderTop: "1px solid var(--border)",
+          borderRadius: "16px 16px 0 0",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.7)",
+          maxHeight: isFullscreen ? "55dvh" : "60%",
+          display: "flex", flexDirection: "column",
+          animation: "slide-up 0.25s ease",
+        }}>
+          {/* Drag handle */}
+          <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "var(--border)" }} />
+          </div>
+
+          {/* Drawer header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 16px 10px" }}>
+            <div style={{
+              background: accentColor, color: "#000", borderRadius: 6,
+              padding: "3px 10px", fontFamily: "var(--display)", fontWeight: 900,
+              fontSize: 18, letterSpacing: 1, flexShrink: 0,
+            }}>521</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 14, color: "var(--text)" }}>{routeName}</div>
+              <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)", marginTop: 1 }}>{stops.length} paradas</div>
+            </div>
+            <button
+              onClick={() => setShowStopList(false)}
+              style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-dim)", flexShrink: 0 }}
+            >
+              <IconClose />
+            </button>
+          </div>
+
+          {/* Search */}
+          <div style={{ position: "relative", padding: "0 16px 10px" }}>
+            <span style={{ position: "absolute", left: 26, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }}>
+              <IconSearch />
+            </span>
+            <input
+              type="text"
+              placeholder="Buscar parada…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: "100%", background: "var(--surface2)", border: "1px solid var(--border)",
+                borderRadius: 8, color: "var(--text)", fontFamily: "var(--body)", fontSize: 13,
+                padding: "8px 10px 8px 32px", outline: "none", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* Stops list */}
+          <div style={{ overflowY: "auto", padding: "0 12px 16px" }}>
+            {filteredStops.map((stop) => {
+              const isSel = stop.id === selectedStop;
+              return (
+                <button
+                  key={stop.id}
+                  onClick={() => {
+                    setSelectedStop(isSel ? null : stop.id);
+                    setShowStopList(false);
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%",
+                    background: isSel ? `rgba(245,166,35,0.12)` : "transparent",
+                    border: isSel ? `1px solid rgba(245,166,35,0.4)` : "1px solid transparent",
+                    borderRadius: 8, padding: "8px 10px", cursor: "pointer",
+                    marginBottom: 3, transition: "all 0.15s ease", textAlign: "left",
+                  }}
+                >
+                  <div style={{
+                    width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                    background: isSel ? accentColor : "var(--surface2)",
+                    border: `2px solid ${isSel ? accentColor : "var(--border)"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "var(--display)", fontWeight: 900, fontSize: 11,
+                    color: isSel ? "#000" : "var(--text-dim)", transition: "all 0.15s ease",
+                  }}>
+                    {stop.id}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--body)", fontSize: 13, color: isSel ? "var(--text)" : "var(--text-dim)", fontWeight: isSel ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {stop.label}
+                    </div>
+                  </div>
+                  <svg style={{ color: isSel ? accentColor : "var(--border)", flexShrink: 0 }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+              );
+            })}
+            {filteredStops.length === 0 && (
+              <div style={{ textAlign: "center", color: "var(--text-muted)", fontFamily: "var(--mono)", fontSize: 12, padding: "12px 0" }}>
+                No se encontraron paradas
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Selected stop action bar ──────────────────────────────────── */}
+      {selected && !showStopList && (
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0,
+          zIndex: 1000, background: "var(--surface)",
+          borderTop: "1px solid var(--border)",
+          padding: "14px 16px",
+          display: "flex", alignItems: "center", gap: 12,
+          animation: "slide-up 0.25s ease",
+          boxShadow: "0 -8px 32px rgba(0,0,0,0.7)",
+        }}>
+          <div style={{
+            width: 38, height: 38, borderRadius: "50%", flexShrink: 0,
+            background: accentColor, display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "var(--display)", fontWeight: 900, fontSize: 16, color: "#000",
+            boxShadow: `0 4px 12px rgba(245,166,35,0.35)`,
+          }}>
+            {selected.id}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 14, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {selected.label}
+            </div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)", marginTop: 1 }}>
+              Parada {selected.id} de {stops.length}
+            </div>
+          </div>
+          <a
+            href={googleMapsUrl(selected.lat, selected.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: accentColor, color: "#000",
+              borderRadius: 10, padding: "10px 14px",
+              fontFamily: "var(--display)", fontWeight: 800, fontSize: 13,
+              cursor: "pointer", textDecoration: "none", flexShrink: 0,
+              boxShadow: "0 4px 12px rgba(245,166,35,0.35)",
+            }}
+          >
+            <GoogleMapsIcon />
+            Maps
+          </a>
+          <a
+            href={googleDirUrl(selected.lat, selected.lng)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: "var(--surface2)", color: "var(--text)",
+              border: "1px solid var(--border)", borderRadius: 10, padding: "10px 12px",
+              fontFamily: "var(--display)", fontWeight: 700, fontSize: 13,
+              cursor: "pointer", textDecoration: "none", flexShrink: 0,
+            }}
+          >
+            <IconNav />
+            Ir
+          </a>
+          <button
+            onClick={() => setSelectedStop(null)}
+            style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--text-dim)", flexShrink: 0 }}
+          >
+            <IconClose />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Stop Popup ───────────────────────────────────────────────────────────────
+
+function StopPopup({ stop, accentColor }: { stop: Stop; accentColor: string }) {
+  return (
+    <div style={{ fontFamily: "var(--body)", minWidth: 180, padding: "2px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <div style={{
+          background: accentColor, color: "#000", borderRadius: "50%",
+          width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center",
+          fontFamily: "var(--display)", fontWeight: 900, fontSize: 13, flexShrink: 0,
+        }}>
+          {stop.id}
+        </div>
+        <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 14, color: "#111", lineHeight: 1.2 }}>
+          {stop.label}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <a
+          href={`https://maps.google.com/?q=${stop.lat},${stop.lng}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            background: accentColor, color: "#000", borderRadius: 8,
+            padding: "8px 0", fontFamily: "var(--display)", fontWeight: 800, fontSize: 12,
+            textDecoration: "none",
+          }}
+        >
+          <GoogleMapsIcon /> Maps
+        </a>
+        <a
+          href={`https://www.google.com/maps/dir/?api=1&destination=${stop.lat},${stop.lng}&travelmode=walking`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            background: "#f0f0f0", color: "#111", borderRadius: 8,
+            padding: "8px 0", fontFamily: "var(--display)", fontWeight: 700, fontSize: 12,
+            textDecoration: "none",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+          </svg>
+          Ir
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function GoogleMapsIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+    </svg>
+  );
+}

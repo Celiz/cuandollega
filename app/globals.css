@@ -168,3 +168,32 @@ body {
     transform: scale(1.15) rotate(-2deg);
     z-index: 1000 !important;
 }
+
+/* ── RouteMap: stop icon container ── */
+.stop-icon-clear {
+    background: none !important;
+    border: none !important;
+}
+
+/* ── Leaflet popup – dark mode ── */
+.leaflet-popup-content-wrapper {
+    background: #1a1a1f !important;
+    color: #e8e8ec !important;
+    border: 1px solid #2a2a32 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7) !important;
+    padding: 0 !important;
+}
+.leaflet-popup-content {
+    margin: 12px 14px !important;
+    line-height: 1.4 !important;
+}
+.leaflet-popup-tip {
+    background: #1a1a1f !important;
+}
+.leaflet-popup-close-button {
+    color: #6b6b7a !important;
+    font-size: 18px !important;
+    top: 6px !important;
+    right: 8px !important;
+}
