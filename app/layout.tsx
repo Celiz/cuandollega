@@ -37,7 +37,10 @@ export const metadata: Metadata = {
         apple: "/icon-192.png",
     },
     verification: {
-        google: "KjCilanSVlDWUMLsTnJa4vj2NjVIeSNXFUlkG10JbgU",
+        google: [
+            "KjCilanSVlDWUMLsTnJa4vj2NjVIeSNXFUlkG10JbgU",
+            "ABFvUfmKFrDnQyejLLezkYWvZe7Vd8EuKO4mETRL8_A"
+        ],
     },
 };
 
