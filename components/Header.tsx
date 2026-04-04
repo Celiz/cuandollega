@@ -43,9 +43,12 @@ export function Header({ tab, setTab, favCount }: HeaderProps) {
                             <IconBus />
                         </div>
                         <div>
-                            <div style={{ fontFamily: "var(--display)", fontWeight: 900, fontSize: 22, letterSpacing: 1, lineHeight: 1 }}>
+                            <h1 style={{
+                                fontFamily: "var(--display)", fontWeight: 900, fontSize: 22, letterSpacing: 1, lineHeight: 1,
+                                margin: 0, padding: 0, textTransform: "uppercase",
+                            }}>
                                 ¿CUÁNDO LLEGA?
-                            </div>
+                            </h1>
                             <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)", letterSpacing: 2 }}>
                                 MAR DEL PLATA · TIEMPO REAL
                             </div>

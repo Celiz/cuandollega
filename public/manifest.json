@@ -1,7 +1,7 @@
 {
-  "name": "¿Cuándo Llega? MDP",
+  "name": "¿Cuándo Llega? MDP — Colectivos en Tiempo Real",
   "short_name": "CuándoLlega",
-  "description": "Colectivos en tiempo real — Mar del Plata",
+  "description": "Consultá en tiempo real el arribo de colectivos en Mar del Plata. Datos oficiales de MGP con la mejor interfaz.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0b",
@@ -22,6 +22,14 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["travel", "utilities"],
-  "screenshots": []
+  "categories": ["travel", "navigation", "transportation"],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-home.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Pantalla principal de búsqueda"
+    }
+  ]
 }

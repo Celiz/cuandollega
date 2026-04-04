@@ -5,9 +5,11 @@ import type { Metadata } from "next";
 import RecorridoClient from "./RecorridoClient";
 
 export const metadata: Metadata = {
-    title: "Recorridos de colectivos | CuándoLlega MDP",
-    description:
-        "Explorá el mapa interactivo con el recorrido y paradas de todas las líneas de colectivo de Mar del Plata. Seleccioná cualquier línea, cambiá de ramal y obtené indicaciones en Google Maps.",
+    title: "Recorridos de Colectivos MDP",
+    description: "Mirá el mapa completo con todos los recorridos y paradas de las líneas de colectivos en Mar del Plata. Mapa interactivo actualizado de MGP.",
+    alternates: {
+        canonical: "/recorrido",
+    },
 };
 
 export default function RecorridoPage() {

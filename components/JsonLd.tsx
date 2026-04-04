@@ -1,0 +1,59 @@
+export function JsonLd() {
+    const webApp = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "¿Cuándo Llega? MDP",
+        "description": "Aplicación para consultar el tiempo de arribo de colectivos en Mar del Plata en tiempo real.",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "All",
+        "url": "https://cuandollega-tawny.vercel.app",
+        "author": {
+            "@type": "Organization",
+            "name": "Cuándo Llega MDP Team"
+        },
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "ARS"
+        },
+        "screenshot": "https://cuandollega-tawny.vercel.app/icon-512.png",
+        "featureList": [
+            "Tiempo real de arribos",
+            "Recorridos completos",
+            "Paradas favoritas",
+            "Historial de búsquedas"
+        ]
+    };
+
+    const breadcrumbs = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Inicio",
+                "item": "https://cuandollega-tawny.vercel.app"
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Recorridos",
+                "item": "https://cuandollega-tawny.vercel.app/recorrido"
+            }
+        ]
+    };
+
+    return (
+        <>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(webApp) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbs) }}
+            />
+        </>
+    );
+}
