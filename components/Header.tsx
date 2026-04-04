@@ -12,72 +12,71 @@ interface HeaderProps {
 
 export function Header({ tab, setTab, favCount }: HeaderProps) {
     const router = useRouter();
-    // Skip SSR entirely: render an empty placeholder until the component mounts.
-    // This prevents hydration mismatches caused by browser extensions that inject
-    // attributes (e.g. tski-tab-id, href) into DOM elements before React hydrates.
+    // Skip SSR entirely for the header content to avoid hydration mismatches
+    // caused by browser extensions or varying server/client environments.
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
 
-    if (!mounted) {
-        return (
-            <header style={{
-                padding: "16px 20px 0",
-                borderBottom: "1px solid var(--border)",
-                background: "var(--surface)",
-                minHeight: 90,
-            }} />
-        );
-    }
-
     return (
         <header style={{
-            padding: "16px 20px 0",
-            borderBottom: "1px solid var(--border)",
+            paddingTop: "16px",
+            paddingRight: "20px",
+            paddingBottom: "0px",
+            paddingLeft: "20px",
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "var(--border)",
             background: "var(--surface)",
+            minHeight: "90px",
+            display: "block",
+            width: "100%",
+            boxSizing: "border-box",
         }}>
-            <div style={{ maxWidth: 520, margin: "0 auto" }}>
-                {/* Logo row */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                    <div style={{
-                        background: "var(--accent)", borderRadius: 8, padding: "5px 8px",
-                        color: "#000", display: "flex",
-                    }}>
-                        <IconBus />
-                    </div>
-                    <div>
-                        <div style={{ fontFamily: "var(--display)", fontWeight: 900, fontSize: 22, letterSpacing: 1, lineHeight: 1 }}>
-                            ¿CUÁNDO LLEGA?
-                        </div>
-                        <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)", letterSpacing: 2 }}>
-                            MAR DEL PLATA · TIEMPO REAL
-                        </div>
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                <div style={{ display: "flex", gap: 0 }}>
-                    {(["buscar", "favoritos"] as const).map(t => (
-                        <button key={t} onClick={() => setTab(t)} style={{
-                            flex: 1, padding: "8px 0", background: "none", border: "none",
-                            borderBottom: tab === t ? "2px solid var(--accent)" : "2px solid transparent",
-                            color: tab === t ? "var(--accent)" : "var(--text-dim)",
-                            fontFamily: "var(--display)", fontWeight: 700, fontSize: 15, letterSpacing: 1,
-                            cursor: "pointer", transition: "all 0.15s", textTransform: "uppercase",
+            {mounted ? (
+                <div style={{ maxWidth: 520, margin: "0 auto" }}>
+                    {/* Logo row */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                        <div style={{
+                            background: "var(--accent)", borderRadius: 8, padding: "5px 8px",
+                            color: "#000", display: "flex",
                         }}>
-                            {t === "buscar" ? "🔍 Buscar" : `⭐ Favoritos (${favCount})`}
+                            <IconBus />
+                        </div>
+                        <div>
+                            <div style={{ fontFamily: "var(--display)", fontWeight: 900, fontSize: 22, letterSpacing: 1, lineHeight: 1 }}>
+                                ¿CUÁNDO LLEGA?
+                            </div>
+                            <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)", letterSpacing: 2 }}>
+                                MAR DEL PLATA · TIEMPO REAL
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tabs */}
+                    <div style={{ display: "flex", gap: 0 }}>
+                        {(["buscar", "favoritos"] as const).map(t => (
+                            <button key={t} onClick={() => setTab(t)} style={{
+                                flex: 1, padding: "8px 0", background: "none", border: "none",
+                                borderBottom: tab === t ? "2px solid var(--accent)" : "2px solid transparent",
+                                color: tab === t ? "var(--accent)" : "var(--text-dim)",
+                                fontFamily: "var(--display)", fontWeight: 700, fontSize: 15, letterSpacing: 1,
+                                cursor: "pointer", transition: "all 0.15s", textTransform: "uppercase",
+                            }}>
+                                {t === "buscar" ? "🔍 Buscar" : `⭐ Favoritos (${favCount})`}
+                            </button>
+                        ))}
+                        <button onClick={() => router.push("/recorrido")} style={{
+                            flex: 1, padding: "8px 0", background: "none", border: "none",
+                            borderBottom: "2px solid transparent",
+                            color: "var(--text-dim)",
+                            fontFamily: "var(--display)", fontWeight: 700, fontSize: 15, letterSpacing: 1,
+                            cursor: "pointer", transition: "color 0.15s", textTransform: "uppercase",
+                        }}>
+                            🗺 Mapa
                         </button>
-                    ))}
-                    <button onClick={() => router.push("/recorrido")} style={{
-                        flex: 1, padding: "8px 0", background: "none", border: "none",
-                        borderBottom: "2px solid transparent",
-                        color: "var(--text-dim)",
-                        fontFamily: "var(--display)", fontWeight: 700, fontSize: 15, letterSpacing: 1,
-                        cursor: "pointer", transition: "color 0.15s", textTransform: "uppercase",
-                    }}>
-                        🗺 Mapa
-                    </button>
+                    </div>
                 </div>
-            </div>
+            ) : null}
         </header>
     );
 }

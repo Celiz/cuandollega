@@ -95,7 +95,7 @@ export function HomeClient() {
         swrFetcher,
         {
             fallbackData: getCache(LINEAS_ACTION) ?? undefined,
-            onSuccess: (data) => setCache(LINEAS_ACTION, data),
+            onSuccess: (data) => setCache(LINEAS_ACTION, data.lineas ?? []),
             onError: (err) => setError(err?.message ?? "Error al cargar las líneas."),
         }
     );
@@ -109,7 +109,7 @@ export function HomeClient() {
         swrFetcher,
         {
             fallbackData: callesParams ? (getCache(CALLES_ACTION, callesParams) ?? undefined) : undefined,
-            onSuccess: (data) => callesParams && setCache(CALLES_ACTION, data, callesParams),
+            onSuccess: (data) => callesParams && setCache(CALLES_ACTION, data.calles ?? [], callesParams),
         }
     );
     const callesRaw: { Codigo: string; Descripcion: string }[] = dataCalles?.calles ?? [];

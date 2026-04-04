@@ -50,7 +50,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets (_next/static, images, fonts) → Cache-first
+  // Static assets (_next/static, images, fonts) → Network-first (fallback to cache)
   if (
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icon-') ||
@@ -58,7 +58,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.ico')
   ) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    event.respondWith(networkFirst(request, STATIC_CACHE));
     return;
   }
 

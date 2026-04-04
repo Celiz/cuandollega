@@ -3,6 +3,7 @@ export interface Linea {
   Descripcion: string;
   CodigoEntidad: string;
   CodigoEmpresa: number;
+  isManual?: boolean;
 }
 
 export interface Interseccion {
@@ -63,4 +64,22 @@ export interface PuntoRecorrido {
   IsPuntoPaso: boolean;
   Latitud: number;
   Longitud: number;
+}
+
+/** A single ramal (branch) with its ordered route points. */
+export interface RamalData {
+  /** Ramal code, e.g. "41" */
+  key: string;
+  /** Human-readable destination, e.g. "AL FARO" */
+  label: string;
+  puntos: PuntoRecorrido[];
+}
+
+/** A bus stop ready to be rendered on the map. */
+export interface ParadaMapa {
+  id: string;       // Identificador, e.g. "10028"
+  codigo: string;   // Codigo interno
+  label: string;    // Human-readable stop name
+  lat: number;
+  lng: number;
 }

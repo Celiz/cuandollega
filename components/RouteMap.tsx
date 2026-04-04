@@ -54,7 +54,12 @@ interface Stop {
 }
 
 interface RouteMapProps {
-  geojsonUrl: string;
+  /** Ordered [lat, lng] pairs that form the route polyline. */
+  routeLine: [number, number][];
+  /** Bus stops to show as numbered markers. */
+  stops: Stop[];
+  /** Line number badge, e.g. "522" */
+  lineNumber?: string;
   routeName?: string;
   accentColor?: string;
 }
@@ -139,7 +144,7 @@ function MapController({
   return null;
 }
 
-// ─── Google Maps helper ───────────────────────────────────────────────────────
+// ─── Google Maps helpers ──────────────────────────────────────────────────────
 
 function googleMapsUrl(lat: number, lng: number) {
   return `https://maps.google.com/?q=${lat},${lng}`;
@@ -151,48 +156,28 @@ function googleDirUrl(lat: number, lng: number) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function RouteMap({
-  geojsonUrl,
+  routeLine,
+  stops,
+  lineNumber = "",
   routeName = "Recorrido",
   accentColor = "#f5a623",
 }: RouteMapProps) {
-  const [routeLine, setRouteLine] = useState<[number, number][]>([]);
-  const [stops, setStops] = useState<Stop[]>([]);
   const [selectedStop, setSelectedStop] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showStopList, setShowStopList] = useState(false);
   const [search, setSearch] = useState("");
   const [fitTrigger, setFitTrigger] = useState(0);
 
+  // Re-fit map when the route changes (line/ramal switch)
+  const routeKey = routeLine[0]?.toString() ?? "";
+  const prevRouteKey = useRef(routeKey);
   useEffect(() => {
-    fetch(geojsonUrl)
-      .then((r) => r.json())
-      .then((geojson) => {
-        const lineCoords: [number, number][] = [];
-        const stopList: Stop[] = [];
-
-        for (const feature of geojson.features) {
-          const { type, coordinates } = feature.geometry;
-          if (type === "LineString") {
-            for (const c of coordinates) lineCoords.push([c[1], c[0]]);
-          } else if (type === "Point") {
-            const [lng, lat] = coordinates;
-            stopList.push({
-              id: stopList.length + 1,
-              lat,
-              lng,
-              label:
-                feature.properties?.nombre ||
-                feature.properties?.name ||
-                `Parada ${stopList.length + 1}`,
-            });
-          }
-        }
-
-        setRouteLine(lineCoords);
-        setStops(stopList);
-      })
-      .catch(console.error);
-  }, [geojsonUrl]);
+    if (prevRouteKey.current !== routeKey) {
+      prevRouteKey.current = routeKey;
+      setFitTrigger((f) => f + 1);
+      setSelectedStop(null);
+    }
+  }, [routeKey]);
 
   const bounds = useMemo<L.LatLngBoundsExpression | null>(() => {
     if (routeLine.length === 0) return null;
@@ -245,11 +230,11 @@ export default function RouteMap({
 
   const containerStyle: React.CSSProperties = isFullscreen
     ? { position: "fixed", inset: 0, zIndex: 99999, background: "#000", display: "flex", flexDirection: "column" }
-    : { height: "400px", width: "100%", borderRadius: "12px", overflow: "hidden", border: "1px solid var(--border)", marginBottom: "16px", position: "relative", zIndex: 1 };
+    : { height: "100%", width: "100%", overflow: "hidden", position: "relative", zIndex: 1, display: "flex", flexDirection: "column" };
 
   return (
     <div style={containerStyle}>
-      {/* ── Floating top-left header ──────────────────────────────────── */}
+      {/* ── Floating top-left header (fullscreen only) ── */}
       {isFullscreen && (
         <div style={{
           position: "absolute", top: 16, left: 16, zIndex: 1000,
@@ -258,12 +243,14 @@ export default function RouteMap({
           fontFamily: "var(--display)", fontWeight: 800, fontSize: 15, letterSpacing: 1,
           display: "flex", alignItems: "center", gap: 10,
         }}>
-          <span style={{ background: accentColor, color: "#000", borderRadius: 6, padding: "2px 10px", fontWeight: 900, fontSize: 18 }}>521</span>
+          {lineNumber && (
+            <span style={{ background: accentColor, color: "#000", borderRadius: 6, padding: "2px 10px", fontWeight: 900, fontSize: 18 }}>{lineNumber}</span>
+          )}
           <span style={{ color: "var(--text)", fontSize: 13 }}>{routeName}</span>
         </div>
       )}
 
-      {/* ── Floating right buttons ────────────────────────────────────── */}
+      {/* ── Floating right buttons ── */}
       <div style={{
         position: "absolute", top: 12, right: 12, zIndex: 1000,
         display: "flex", gap: 10, flexDirection: "column",
@@ -291,7 +278,7 @@ export default function RouteMap({
         </button>
       </div>
 
-      {/* ── Map ──────────────────────────────────────────────────────── */}
+      {/* ── Map ── */}
       <MapContainer
         center={center}
         zoom={12}
@@ -314,7 +301,6 @@ export default function RouteMap({
               lineCap="round"
               lineJoin="round"
             />
-            {/* Direction arrows */}
             {arrowMarkers.map((arr, idx) => (
               <Marker
                 key={`arr-${idx}`}
@@ -347,7 +333,7 @@ export default function RouteMap({
         <MapController bounds={bounds} triggerFit={fitTrigger} isFullscreen={isFullscreen} />
       </MapContainer>
 
-      {/* ── Stop list drawer (bottom sheet) ──────────────────────────── */}
+      {/* ── Stop list drawer (bottom sheet) ── */}
       {showStopList && (
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 1000,
@@ -365,11 +351,13 @@ export default function RouteMap({
 
           {/* Drawer header */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 16px 10px" }}>
-            <div style={{
-              background: accentColor, color: "#000", borderRadius: 6,
-              padding: "3px 10px", fontFamily: "var(--display)", fontWeight: 900,
-              fontSize: 18, letterSpacing: 1, flexShrink: 0,
-            }}>521</div>
+            {lineNumber && (
+              <div style={{
+                background: accentColor, color: "#000", borderRadius: 6,
+                padding: "3px 10px", fontFamily: "var(--display)", fontWeight: 900,
+                fontSize: 18, letterSpacing: 1, flexShrink: 0,
+              }}>{lineNumber}</div>
+            )}
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 14, color: "var(--text)" }}>{routeName}</div>
               <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)", marginTop: 1 }}>{stops.length} paradas</div>
@@ -449,7 +437,7 @@ export default function RouteMap({
         </div>
       )}
 
-      {/* ── Selected stop action bar ──────────────────────────────────── */}
+      {/* ── Selected stop action bar ── */}
       {selected && !showStopList && (
         <div style={{
           position: "absolute", bottom: 0, left: 0, right: 0,

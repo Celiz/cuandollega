@@ -1,4 +1,4 @@
-import { Arribo, Favorito, HistorialEntry, Interseccion, Linea, Parada, PuntoRecorrido } from "./cuandoLlega.types";
+import { Arribo, Favorito, HistorialEntry, Interseccion, Linea, Parada, ParadaMapa, PuntoRecorrido, RamalData } from "./cuandoLlega.types";
 
 const BASE_URL = "/api/cuando";
 
@@ -94,6 +94,71 @@ export async function getRecorrido(codLinea: string): Promise<PuntoRecorrido[]> 
     isSublinea: "0",
   });
   return data.puntos ?? [];
+}
+
+/**
+ * Returns all ramales (branches) for a line, each with their ordered route points.
+ * The API returns all puntos in a flat array; we group them by Descripcion
+ * which has the format "ramalId;labelIda;labelVuelta".
+ */
+export async function getRecorridoRamales(codLinea: string): Promise<RamalData[]> {
+  const data = await post("RecuperarRecorridoParaMapaAbrevYAmpliPorEntidadYLinea", {
+    codLinea,
+    isSublinea: "0",
+  });
+  const puntos: PuntoRecorrido[] = data.puntos ?? [];
+
+  // Group by Descripcion, preserving insertion order (= route order)
+  const byDesc = new Map<string, PuntoRecorrido[]>();
+  for (const p of puntos) {
+    if (!byDesc.has(p.Descripcion)) byDesc.set(p.Descripcion, []);
+    byDesc.get(p.Descripcion)!.push(p);
+  }
+
+  return Array.from(byDesc.entries()).map(([desc, pts]) => {
+    const parts = desc.split(";");
+    const key = parts[0] ?? desc;          // e.g. "41"
+    const label = parts[1] ?? desc;        // e.g. "AL FARO"
+    return { key, label, puntos: pts } satisfies RamalData;
+  });
+}
+
+/**
+ * Returns all bus stops for a line as a flat, de-duplicated array.
+ * The API returns a dict keyed by Identificador; each value is an array
+ * of entries per bandera (the stop itself is the same location for all).
+ */
+export async function getParadasParaMapa(codLinea: string): Promise<ParadaMapa[]> {
+  const data = await post("RecuperarParadasConBanderaYDestinoPorLinea", {
+    codLinea,
+    isSublinea: "0",
+  });
+
+  type RawEntry = {
+    Codigo: string;
+    Identificador: string;
+    Descripcion: string;
+    AbreviaturaBandera: string;
+    LatitudParada: string | null;
+    LongitudParada: string | null;
+  };
+  const raw: Record<string, RawEntry[]> = data.paradas ?? {};
+
+  const result: ParadaMapa[] = [];
+  for (const [id, entries] of Object.entries(raw)) {
+    if (!entries.length) continue;
+    const first = entries[0];
+    const lat = parseFloat(first.LatitudParada ?? "");
+    const lng = parseFloat(first.LongitudParada ?? "");
+    if (isNaN(lat) || isNaN(lng)) continue;
+
+    // Use Descripcion only when it looks like a human name (has a space),
+    // otherwise fall back to the Identificador.
+    const label = /\s/.test(first.Descripcion) ? first.Descripcion : id;
+
+    result.push({ id, codigo: first.Codigo, label, lat, lng });
+  }
+  return result;
 }
 
 // --- Favoritos (localStorage) ---
