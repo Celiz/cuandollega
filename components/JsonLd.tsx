@@ -44,6 +44,32 @@ export function JsonLd() {
         ]
     };
 
+    const organization = {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Cuándo Llega MDP",
+        "url": "https://cuandollega-tawny.vercel.app",
+        "logo": "https://cuandollega-tawny.vercel.app/icon-512.png"
+    };
+
+    const webSite = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "¿Cuándo Llega? MDP",
+        "url": "https://cuandollega-tawny.vercel.app"
+    };
+
+    const speakable = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "¿Cuándo Llega? MDP",
+        "speakable": {
+            "@type": "SpeakableSpecification",
+            "cssSelector": [".arrival-times", ".route-info"]
+        },
+        "url": "https://cuandollega-tawny.vercel.app"
+    };
+
     return (
         <>
             <script
@@ -53,6 +79,18 @@ export function JsonLd() {
             <script
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbs) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(organization) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(webSite) }}
+            />
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(speakable) }}
             />
         </>
     );
