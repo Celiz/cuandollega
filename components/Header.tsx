@@ -65,7 +65,7 @@ export function Header({ tab, setTab, favCount }: HeaderProps) {
                                 fontFamily: "var(--display)", fontWeight: 700, fontSize: 15, letterSpacing: 1,
                                 cursor: "pointer", transition: "all 0.15s", textTransform: "uppercase",
                             }}>
-                                {t === "buscar" ? "🔍 Buscar" : `⭐ Favoritos (${favCount})`}
+                                {t === "buscar" ? "Buscar" : `Favoritos (${favCount})`}
                             </button>
                         ))}
                         <button onClick={() => router.push("/recorrido")} style={{
@@ -75,7 +75,7 @@ export function Header({ tab, setTab, favCount }: HeaderProps) {
                             fontFamily: "var(--display)", fontWeight: 700, fontSize: 15, letterSpacing: 1,
                             cursor: "pointer", transition: "color 0.15s", textTransform: "uppercase",
                         }}>
-                            🗺 Mapa
+                            Mapa
                         </button>
                     </div>
                 </div>

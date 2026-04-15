@@ -29,12 +29,12 @@ function buildShareText(
     });
 
     const header = ubicacion
-        ? `🚌 Próximos colectivos en ${ubicacion}:\n`
-        : `🚌 Próximos colectivos:\n`;
+        ? `Próximos colectivos en ${ubicacion}:\n`
+        : `Próximos colectivos:\n`;
 
     // Deep-link so the recipient can check live arrivals themselves
     const url = typeof window !== "undefined" ? window.location.href : "";
-    const linkLine = url ? `\n🔗 Ver en vivo: ${url}` : "";
+    const linkLine = url ? `\nVer en vivo: ${url}` : "";
 
     return header + lines.join("\n") + linkLine;
 }

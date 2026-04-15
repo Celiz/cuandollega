@@ -3,9 +3,10 @@ import { ArriboCard } from "./ArriboCard";
 import { ShareButton } from "./ShareButton";
 import { IconRefresh } from "./icons/IconRefresh";
 import { IconX } from "./icons/IconX";
-import { type Arribo, type Parada } from "@/lib/cuandoLlega.types";
+import { type Arribo, type Parada, type Linea } from "@/lib/cuandoLlega.types";
 import { memo } from "react";
 import dynamic from "next/dynamic";
+import { OtrasLineasSuggestion } from "./OtrasLineasSuggestion";
 
 const BusMap = dynamic(() => import('@/components/Map'), { 
     ssr: false, 
@@ -54,6 +55,11 @@ interface SearchFlowProps {
     handleConsultar: () => void;
     fetchArribos: () => void;
     handleFavFromArribos: (arribo: Arribo) => void;
+
+    // Otras Lineas Suggestion
+    otrasLineas?: Linea[];
+    loadingOtras?: boolean;
+    onSelectOtraLinea?: (linea: Linea) => void;
 }
 
 export const SearchFlow = memo(function SearchFlow({
@@ -64,11 +70,12 @@ export const SearchFlow = memo(function SearchFlow({
     selectedRamal, setSelectedRamal,
     isConsulting, setIsConsulting,
     lineaOptions, calles, interOptions, destinoOptions, ramalOptions,
-    loadingLineas, loadingCalles, loadingInter, loadingParadas, loadingArribos,
+    loadingLineas, loadingCalles, loadingInter, loadingArribos,
     error, setError,
     displayArribos, selectedParada, lastUpdate,
     calleLabel, interseccionLabel,
-    handleConsultar, fetchArribos, handleFavFromArribos
+    handleConsultar, fetchArribos, handleFavFromArribos,
+    otrasLineas = [], loadingOtras = false, onSelectOtraLinea
 }: SearchFlowProps) {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -232,6 +239,14 @@ export const SearchFlow = memo(function SearchFlow({
                                     onFav={() => handleFavFromArribos(a)}
                                 />
                             ))}
+                            
+                            {onSelectOtraLinea && (otrasLineas.length > 0 || loadingOtras) && (
+                                <OtrasLineasSuggestion
+                                    lineas={otrasLineas}
+                                    loading={loadingOtras}
+                                    onSelect={onSelectOtraLinea}
+                                />
+                            )}
                         </div>
                     )}
 
@@ -256,7 +271,13 @@ export const SearchFlow = memo(function SearchFlow({
                     animation: "slide-up 0.2s ease",
                 }}>
                     {/* Warning icon */}
-                    <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+                    <span style={{ flexShrink: 0, marginTop: 1, color: "#ef4444" }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                            <path d="M12 9v4" />
+                            <path d="M12 17h.01" />
+                        </svg>
+                    </span>
                     <div style={{ flex: 1 }}>
                         <div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 13, color: "#ef4444", marginBottom: 3 }}>
                             El servidor no responde

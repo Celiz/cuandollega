@@ -7,6 +7,7 @@ import {
     getFavoritos, saveFavorito, removeFavorito, isFavorito,
     getCalles, updateFavorito,
     getHistorial, pushHistorial, removeHistorialEntry, clearHistorial,
+    findLineasEnInterseccion, post
 } from "@/lib/cuandoLlega";
 import { type Linea, type Interseccion, type Parada, type Arribo, type Favorito, type HistorialEntry } from "@/lib/cuandoLlega.types";
 import { cleanLabel } from "@/lib/utils";
@@ -20,6 +21,12 @@ import { SearchFlow } from "@/components/SearchFlow";
 import { FavoriteNameModal } from "@/components/FavoriteNameModal";
 import useSWR from "swr";
 import { swrFetcher } from "@/lib/cuandoLlega";
+
+const EMPTY_LINEAS: Linea[] = [];
+const EMPTY_CALLES: { Codigo: string; Descripcion: string }[] = [];
+const EMPTY_INTER: Interseccion[] = [];
+const EMPTY_PARADAS: Parada[] = [];
+const EMPTY_ARRIBOS: Arribo[] = [];
 
 export function HomeClient() {
     const router = useRouter();
@@ -47,6 +54,10 @@ export function HomeClient() {
     // auto-refresh management
     const [isConsulting, setIsConsulting] = useState(false);
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+
+    // Sugerencias de otras lineas
+    const [otrasLineas, setOtrasLineas] = useState<Linea[]>([]);
+    const [loadingOtras, setLoadingOtras] = useState(false);
 
     // --- Hydrate from URL on first render ---
     const hydrated = useRef(false);
@@ -99,7 +110,7 @@ export function HomeClient() {
             onError: (err) => setError(err?.message ?? "Error al cargar las líneas."),
         }
     );
-    const lineas: Linea[] = dataLineas?.lineas ?? [];
+    const lineas: Linea[] = dataLineas?.lineas ?? EMPTY_LINEAS;
 
     // 2. Calles (depends on codLinea) — with 24h localStorage cache as fallback
     const CALLES_ACTION = "RecuperarCallesPrincipalPorLinea";
@@ -112,14 +123,14 @@ export function HomeClient() {
             onSuccess: (data) => callesParams && setCache(CALLES_ACTION, data.calles ?? [], callesParams),
         }
     );
-    const callesRaw: { Codigo: string; Descripcion: string }[] = dataCalles?.calles ?? [];
+    const callesRaw: { Codigo: string; Descripcion: string }[] = dataCalles?.calles ?? EMPTY_CALLES;
 
     // 3. Intersecciones (depends on codLinea & codCalle)
     const { data: dataInter, isLoading: loadingInter } = useSWR<any>(
         codLinea && codCalle ? ["RecuperarInterseccionPorLineaYCalle", { codLinea, codCalle }] : null,
         swrFetcher
     );
-    const intersecciones: Interseccion[] = dataInter?.calles ?? [];
+    const intersecciones: Interseccion[] = dataInter?.calles ?? EMPTY_INTER;
 
     // 4. Paradas (depends on codLinea, codCalle, codInterseccion)
     const { data: dataParadas, isLoading: loadingParadas } = useSWR<any>(
@@ -128,7 +139,7 @@ export function HomeClient() {
             : null,
         swrFetcher
     );
-    const paradas: Parada[] = dataParadas?.paradas ?? [];
+    const paradas: Parada[] = dataParadas?.paradas ?? EMPTY_PARADAS;
 
     // 5. Arribos (depends on paradaId & codLinea, and isConsulting)
     const { data: dataArribos, isLoading: loadingArribos, mutate: mutateArribos } = useSWR<any>(
@@ -142,7 +153,79 @@ export function HomeClient() {
             onError: (err) => setError(err?.message ?? "El servidor de la Municipalidad no responde."),
         }
     );
-    const arribos: Arribo[] = dataArribos?.arribos ?? [];
+    const arribos: Arribo[] = dataArribos?.arribos ?? EMPTY_ARRIBOS;
+
+    // --- Memoized derived options ---
+    const lineaOptions = useMemo(() =>
+        lineas.map(l => ({ value: l.CodigoLineaParada, label: l.Descripcion })),
+        [lineas]);
+
+    const calles = useMemo(() =>
+        callesRaw.map(c => ({
+            value: c.Codigo,
+            label: cleanLabel(c.Descripcion),
+        })),
+        [callesRaw]);
+
+    const interOptions = useMemo(() =>
+        intersecciones.map(i => ({
+            value: i.Codigo,
+            label: cleanLabel(i.Descripcion),
+        })),
+        [intersecciones]);
+
+    const destinoOptions = useMemo(() => {
+        const uniqueIds = Array.from(new Set(paradas.map(p => p.Identificador)));
+        return uniqueIds.map(id => {
+            const first = paradas.find(p => p.Identificador === id);
+            return { value: id, label: first?.AbreviaturaBandera ?? id };
+        });
+    }, [paradas]);
+
+    const ramalOptions = useMemo(() => {
+        const matched = paradas.filter(p => p.Identificador === paradaId);
+        return [
+            { value: "TODOS", label: "Todos" },
+            ...matched.map(r => ({ value: r.AbreviaturaBandera, label: r.AbreviaturaBandera }))
+        ];
+    }, [paradas, paradaId]);
+
+    const displayArribos = useMemo(() => {
+        if (selectedRamal === "TODOS") return arribos;
+        return arribos.filter(a => a.DescripcionBandera === selectedRamal);
+    }, [arribos, selectedRamal]);
+
+    const selectedParada = useMemo(() =>
+        paradas.find(p => p.Identificador === paradaId),
+        [paradas, paradaId]);
+
+    // Fetch otras línas effect
+    useEffect(() => {
+        if (!isConsulting || !codLinea || !codCalle || !codInterseccion || lineas.length === 0) {
+            setOtrasLineas(prev => prev.length === 0 ? prev : []);
+            return;
+        }
+
+        const currentCalleLabel = calles.find(c => c.value === codCalle)?.label;
+        const currentInterLabel = interOptions.find(i => i.value === codInterseccion)?.label;
+
+        if (!currentCalleLabel || !currentInterLabel) return;
+
+        let active = true;
+        setLoadingOtras(true);
+        findLineasEnInterseccion(currentCalleLabel, currentInterLabel, codLinea, lineas)
+            .then(res => {
+                if (active) {
+                    setOtrasLineas(res);
+                    setLoadingOtras(false);
+                }
+            })
+            .catch(() => {
+                if (active) setLoadingOtras(false);
+            });
+
+        return () => { active = false; };
+    }, [isConsulting, codLinea, codCalle, codInterseccion, lineas, calles, interOptions]);
 
     // Auto-save historial on first successful fetch after consulting
     const savedHistRef = useRef("");
@@ -264,6 +347,55 @@ export function HomeClient() {
         setFavoritos(getFavoritos());
     }, []);
 
+    const handleSelectOtraLinea = useCallback(async (linea: Linea) => {
+        const currentCalleLabel = calles.find(c => c.value === codCalle)?.label;
+        const currentInterLabel = interOptions.find(i => i.value === codInterseccion)?.label;
+        if (!currentCalleLabel || !currentInterLabel) return;
+
+        setIsConsulting(false);
+        setCodLinea(linea.CodigoLineaParada);
+        setCodCalle("");
+        setCodInterseccion("");
+        setParadaId("");
+        setSelectedRamal("TODOS");
+
+        try {
+            // Re-fetch or cache for the new line to find its matching codes
+            let nuevasCalles = getCache<any>("RecuperarCallesPrincipalPorLinea", { codLinea: linea.CodigoLineaParada });
+            if (!nuevasCalles) {
+                const res = await post("RecuperarCallesPrincipalPorLinea", { codLinea: linea.CodigoLineaParada });
+                nuevasCalles = res?.calles ?? [];
+            }
+            
+            const matchCalle = nuevasCalles.find((c: any) => c.Descripcion && c.Descripcion.includes(currentCalleLabel) || currentCalleLabel.includes(c.Descripcion));
+            if (!matchCalle) return;
+            setCodCalle(matchCalle.Codigo);
+
+            let nuevasInter = getCache<any>("RecuperarInterseccionPorLineaYCalle", { codLinea: linea.CodigoLineaParada, codCalle: matchCalle.Codigo });
+            if (!nuevasInter) {
+                const res = await post("RecuperarInterseccionPorLineaYCalle", { codLinea: linea.CodigoLineaParada, codCalle: matchCalle.Codigo });
+                nuevasInter = res?.calles ?? [];
+            }
+
+            const matchInter = nuevasInter.find((i: any) => i.Descripcion && (i.Descripcion.includes(currentInterLabel) || currentInterLabel.includes(i.Descripcion)));
+            if (!matchInter) return;
+            setCodInterseccion(matchInter.Codigo);
+
+            const resParadas = await post("RecuperarParadasConBanderaPorLineaCalleEInterseccion", {
+                codLinea: linea.CodigoLineaParada,
+                codCalle: matchCalle.Codigo,
+                codInterseccion: matchInter.Codigo
+            });
+            const nParadas = resParadas?.paradas ?? [];
+            if (nParadas.length > 0) {
+                setParadaId(nParadas[0].Identificador);
+                setIsConsulting(true);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }, [codCalle, codInterseccion, calles, interOptions]);
+
     const fetchHistEntry = useCallback((entry: HistorialEntry) => {
         setTab("buscar");
         setParadaId(entry.paradaId);
@@ -283,50 +415,6 @@ export function HomeClient() {
         setHistorial([]);
     }, []);
 
-    // --- Memoized derived options ---
-
-    const lineaOptions = useMemo(() =>
-        lineas.map(l => ({ value: l.CodigoLineaParada, label: l.Descripcion })),
-        [lineas]);
-
-    const calles = useMemo(() =>
-        callesRaw.map(c => ({
-            value: c.Codigo,
-            label: cleanLabel(c.Descripcion),
-        })),
-        [callesRaw]);
-
-    const interOptions = useMemo(() =>
-        intersecciones.map(i => ({
-            value: i.Codigo,
-            label: cleanLabel(i.Descripcion),
-        })),
-        [intersecciones]);
-
-    const destinoOptions = useMemo(() => {
-        const uniqueIds = Array.from(new Set(paradas.map(p => p.Identificador)));
-        return uniqueIds.map(id => {
-            const first = paradas.find(p => p.Identificador === id);
-            return { value: id, label: first?.AbreviaturaBandera ?? id };
-        });
-    }, [paradas]);
-
-    const ramalOptions = useMemo(() => {
-        const matched = paradas.filter(p => p.Identificador === paradaId);
-        return [
-            { value: "TODOS", label: "Todos" },
-            ...matched.map(r => ({ value: r.AbreviaturaBandera, label: r.AbreviaturaBandera }))
-        ];
-    }, [paradas, paradaId]);
-
-    const displayArribos = useMemo(() => {
-        if (selectedRamal === "TODOS") return arribos;
-        return arribos.filter(a => a.DescripcionBandera === selectedRamal);
-    }, [arribos, selectedRamal]);
-
-    const selectedParada = useMemo(() =>
-        paradas.find(p => p.Identificador === paradaId),
-        [paradas, paradaId]);
 
     return (
         <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column" }}>
@@ -351,6 +439,9 @@ export function HomeClient() {
                         fetchArribos={handleFetchArribos} handleFavFromArribos={handleFavFromArribos}
                         calleLabel={calles.find(c => c.value === codCalle)?.label}
                         interseccionLabel={interOptions.find(i => i.value === codInterseccion)?.label}
+                        otrasLineas={otrasLineas}
+                        loadingOtras={loadingOtras}
+                        onSelectOtraLinea={handleSelectOtraLinea}
                     />
                 ) : (
                     <>

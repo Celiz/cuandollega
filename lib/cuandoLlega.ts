@@ -1,4 +1,5 @@
 import { Arribo, Favorito, HistorialEntry, Interseccion, Linea, Parada, ParadaMapa, PuntoRecorrido, RamalData } from "./cuandoLlega.types";
+import { getCache, setCache } from "./localCache";
 
 const BASE_URL = "/api/cuando";
 
@@ -230,3 +231,88 @@ export function removeHistorialEntry(id: string): void {
 export function clearHistorial(): void {
   localStorage.removeItem(HIST_KEY);
 }
+
+// --- Otras Líneas ---
+/**
+ * Finds which other lines also stop at the specified intersection.
+ * Uses caching to avoid spamming the API and runs a limited number of
+ * concurrent requests to speed up the process.
+ */
+export async function findLineasEnInterseccion(
+  calleLabel: string,
+  interseccionLabel: string,
+  currentLineaCode: string,
+  todasLasLineas: Linea[]
+): Promise<Linea[]> {
+  const lineasCandidatas = todasLasLineas.filter((l) => l.CodigoLineaParada !== currentLineaCode && !l.isManual);
+  const result: Linea[] = [];
+
+  // Limit concurrency
+  const limit = 5;
+  let active = 0;
+  let currentIndex = 0;
+
+  return new Promise((resolve) => {
+    const next = async () => {
+      if (currentIndex >= lineasCandidatas.length) {
+        if (active === 0) resolve(result);
+        return;
+      }
+      
+      const linea = lineasCandidatas[currentIndex++];
+      active++;
+      
+      try {
+        const codLinea = linea.CodigoLineaParada;
+        
+        // 1. Check if the line visits the principal street
+        const callesAction = "RecuperarCallesPrincipalPorLinea";
+        const callesParams = { codLinea };
+        let calles = getCache<unknown[]>(callesAction, callesParams);
+        
+        if (!calles) {
+          const res = await post(callesAction, callesParams).catch(() => null);
+          calles = res?.calles ?? [];
+          if (Array.isArray(calles) && calles.length > 0) setCache(callesAction, calles, callesParams);
+        }
+
+        const matchCalle = (calles as unknown[])?.find((c: unknown) => {
+          const desc = (c as Record<string, string>)?.Descripcion;
+          return desc && desc.includes(calleLabel) || calleLabel.includes(desc);
+        }) as Record<string, string> | undefined;
+        
+        const codCalle = matchCalle?.Codigo;
+        
+        if (codCalle) {
+          // 2. Check if the line has the requested intersection
+          const interAction = "RecuperarInterseccionPorLineaYCalle";
+          const interParams = { codLinea, codCalle };
+          let intersecciones = getCache<unknown[]>(interAction, interParams);
+          
+          if (!intersecciones) {
+            const res = await post(interAction, interParams).catch(() => null);
+            intersecciones = res?.calles ?? [];
+            if (Array.isArray(intersecciones) && intersecciones.length > 0) setCache(interAction, intersecciones, interParams);
+          }
+          
+          const matchInter = (intersecciones as unknown[])?.some((i: unknown) => {
+            const desc = (i as Record<string, string>)?.Descripcion;
+            return desc && desc.includes(interseccionLabel) || interseccionLabel.includes(desc);
+          });
+          if (matchInter) {
+            result.push(linea);
+          }
+        }
+      } catch {
+        // Silently ignore errors for individual lines to keep checking the rest
+      } finally {
+        active--;
+        next();
+      }
+    };
+
+    // Start initial batch
+    for (let i = 0; i < limit; i++) next();
+  });
+}
+

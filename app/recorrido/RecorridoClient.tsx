@@ -484,7 +484,13 @@ function MapErrorOverlay({ message, onRetry }: { message: string; onRetry: () =>
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
       gap: 16, background: "var(--bg)", padding: "24px",
     }}>
-      <div style={{ fontSize: 36 }}>⚠️</div>
+      <div style={{ color: "var(--text-dim)" }}>
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </svg>
+      </div>
       <div style={{ fontFamily: "var(--body)", fontSize: 14, color: "var(--text-dim)", textAlign: "center", maxWidth: 280 }}>
         {message}
       </div>
